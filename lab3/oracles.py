@@ -25,6 +25,18 @@ class BaseSmoothOracle(object):
         Computes the Hessian matrix at point x.
         """
         raise NotImplementedError('Hessian oracle is not implemented.')
+    
+    def func_directional(self, x, d, alpha):
+        """
+        Computes phi(alpha) = f(x + alpha*d).
+        """
+        return np.squeeze(self.func(x + alpha * d))
+
+    def grad_directional(self, x, d, alpha):
+        """
+        Computes phi'(alpha) = (f(x + alpha*d))'_{alpha}
+        """
+        return np.squeeze(self.grad(x + alpha * d).dot(d))
 
    
 class BarrierOracle(BaseSmoothOracle):
@@ -39,9 +51,14 @@ class BarrierOracle(BaseSmoothOracle):
         self.matvec_Ax = lambda x: A @ x
         self.matvec_ATx = lambda x: A.T @ x
 
+    def antider_func(self, pt: np.ndarray):
+        x, u = np.array_split(pt, 2)
+        return 1 / 2 * np.linalg.norm(self.matvec_Ax(x) - self.b) ** 2 + self.regcoef * np.sum(u)
+
     def func(self, pt: np.ndarray):
         x, u = np.array_split(pt, 2)
-        return self.t * 1 / 2 * np.linalg.norm(self.matvec_Ax(x) - self.b) ** 2 + self.regcoef * np.sum(u) - np.sum(np.log(u + x) + np.log(u - x))
+        up, um = np.log(u + x), np.log(u - x)
+        return self.t * self.antider_func(pt) - np.sum(up + um)
     
     def grad(self, pt: np.ndarray):
         x, u = np.array_split(pt, 2)
